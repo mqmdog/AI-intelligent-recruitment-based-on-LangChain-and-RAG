@@ -3,9 +3,9 @@ from datetime import datetime, timedelta
 from typing import Annotated, Any, List, Optional, TypeVar
 
 from langchain.agents import create_agent
-from langchain.agents.middleware import ModelFallbackMiddleware, SummarizationMiddleware
-from langchain.tools import tool, ToolRuntime
-from langchain_core.prompts import PromptTemplate
+from langchain.agents.middleware import ModelFallbackMiddleware, SummarizationMiddleware #模型降级中间件，总结中间件
+from langchain.tools import tool, ToolRuntime  # 工具运行时上下文，提供状态访问
+from langchain_core.prompts import PromptTemplate #提示词模版
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from langgraph.graph.message import BaseMessage, add_messages
 from loguru import logger
@@ -89,6 +89,7 @@ class CandidateAgentState(BaseModel):
     candidate: Annotated[CandidateSchema, assign_state_property]
     position: Annotated[PositionSchema, assign_state_property]
     interviewer: Annotated[UserSchema, assign_state_property]
+# Annotated[类型, 元数据]：为类型添加额外元数据
 
 
 @tool
@@ -101,7 +102,7 @@ async def score_for_candidate(
     return：
     - str | None: 评分结果的JSON字符串，如果评分失败则返回None
     """
-    candidate: CandidateSchema = runtime.state['candidate']
+    candidate: CandidateSchema = runtime.state['candidate'] 
     position: PositionSchema = runtime.state['position']
     #1.创建评分 Agent
     score_agent = create_agent(

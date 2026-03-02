@@ -16,14 +16,14 @@ class Settings(BaseSettings):
 
     # 数据库
     DB_USERNAME: str = "postgres"
-    DB_PASSWORD: str = "786378"
+    DB_PASSWORD: str = Field(..., validation_alias="DB_PASSWORD")
     DB_HOST: str = "127.0.0.1"
     DB_PORT: int = 5433
     DB_NAME: str = "hr_system"
     DB_AGENT_NAME: str = "hr_system_agent"
 
     # JWT
-    JWT_SECRET_KEY: str = "liangyishi"
+    JWT_SECRET_KEY: str = Field(..., validation_alias="JWT_SECRET_KEY")
     JWT_ACCESS_TOKEN_EXPIRES: timedelta = timedelta(days=365)
     JWT_REFRESH_TOKEN_EXPIRES: timedelta = timedelta(days=365)
 

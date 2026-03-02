@@ -26,9 +26,9 @@ from settings import settings
 @dataclass
 class QueryAnalysis:
     """查询分析结果"""
-    intent: str
-    rewritten_queries: List[str]
-    key_entities: List[str]
+    intent: str #用户意图
+    rewritten_queries: List[str] #改写后的查询
+    key_entities: List[str] #提取的关键实体
 
 
 @dataclass
@@ -71,16 +71,18 @@ class QueryUnderstandingLayer:
                 key_entities=[],
             )
 
+    # 格式化历史对话
     def _format_history(self, history: List[ChatHistoryModel]) -> str:
         if not history:
             return "无历史对话"
 
         lines = []
-        for msg in history[-6:]:
+        for msg in history[-6:]:  # 只保留最近6条，每条截断200字，避免上下文过长
             role = "用户" if msg.role == MessageRole.USER else "助手"
-            lines.append(f"{role}: {msg.content[:200]}")
+            lines.append(f"{role}: {msg.content[:200]}") # 截断长文本
         return "\n".join(lines)
 
+    # 解析模型输出
     def _parse_response(self, content: str) -> QueryAnalysis:
         try:
             content = content.strip()
@@ -131,14 +133,17 @@ class HybridRetrievalLayer:
     async def _vector_search(self, queries: List[str]) -> List[RetrievedChunk]:
         """向量相似度搜索"""
         try:
+            # 计算查询向量的平均值
             embeddings = await embedding_client.embed_batch(queries)
             avg_embedding = [
                 sum(emb[i] for emb in embeddings) / len(embeddings)
                 for i in range(len(embeddings[0]))
             ]
 
+            # 向量相似度搜索
             results = await self.repo.vector_search(avg_embedding)
 
+            # 构建检索结果
             return [
                 RetrievedChunk(
                     chunk_id=chunk.id,
@@ -158,8 +163,8 @@ class HybridRetrievalLayer:
     async def _keyword_search(self, queries: List[str]) -> List[RetrievedChunk]:
         """关键词全文搜索"""
         try:
-            query_text = " ".join(queries)
-            results = await self.repo.keyword_search(query_text)
+            query_text = " ".join(queries) #合并所有查询
+            results = await self.repo.keyword_search(query_text) #返回结果相关性排名
 
             return [
                 RetrievedChunk(
@@ -177,6 +182,9 @@ class HybridRetrievalLayer:
             logger.error(f"关键词搜索失败: {e}")
             return []
 
+    # RRF 融合：每个结果根据其在检索结果中的排名获得一个分数
+    # 公式：score = 1/(k + rank)，k是常数（通常60）
+    # 平衡不同检索方法的排名，对排名靠前的结果给予更高权重
     def _rrf_fusion(
         self,
         vector_results: List[RetrievedChunk],
@@ -222,32 +230,39 @@ class RerankFilterLayer:
 
         scored_chunks = await self._llm_rerank(user_question, chunks)
 
-        filtered = [c for c in scored_chunks if c.score >= 3]
+        filtered = [c for c in scored_chunks if c.score >= 3]# 过滤掉分数小于3的
 
         deduplicated = self._deduplicate(filtered)
 
         return deduplicated[:settings.RAG_TOP_K_RERANK]
 
+
+    # LLM重排序
     async def _llm_rerank(
         self,
         user_question: str,
         chunks: List[RetrievedChunk]
     ) -> List[RetrievedChunk]:
         """使用 LLM 对候选文档打分"""
+
+        # 构建候选项文本
         candidates_text = "\n\n".join([
             f"[{i}] {chunk.chunk_text[:500]}"
             for i, chunk in enumerate(chunks)
         ])
 
+        # 构建提示词    
         prompt = RERANK_PROMPT.format(
             user_question=user_question,
             candidates=candidates_text,
         )
 
+        # 调用 LLM 进行重排序
         try:
             response = await deepseek_llm.ainvoke([HumanMessage(content=prompt)])
             scores = self._parse_scores(response.content)
 
+            #更新分数并排序
             for i, chunk in enumerate(chunks):
                 chunk.score = scores.get(i, 0)
 
@@ -273,7 +288,7 @@ class RerankFilterLayer:
             return {}
 
     def _deduplicate(self, chunks: List[RetrievedChunk]) -> List[RetrievedChunk]:
-        """去重：同一职位最多保留 1 个 chunk"""
+        """去重：同一职位最多保留 1 个 chunk，避免重复信息"""
         seen_positions = set()
         result = []
 
@@ -308,6 +323,8 @@ class GenerationValidationLayer:
             if chunk.content:
                 yield chunk.content
 
+
+    # 构建上下文，将数据库字段转换为自然语言段落，便于LLM理解
     def _build_context(self, chunks: List[RetrievedChunk]) -> str:
         if not chunks:
             return "暂无相关职位信息"
@@ -338,6 +355,7 @@ class GenerationValidationLayer:
 
         return "\n---\n".join(contexts)
 
+    # 格式化历史对话，将用户和助手的对话内容拼接成字符串
     def _format_history(self, history: List[ChatHistoryModel]) -> str:
         if not history:
             return "无历史对话"
@@ -355,11 +373,12 @@ class JobQAAgent:
     def __init__(self, session: AsyncSession):
         self.session = session
         self.layer1 = QueryUnderstandingLayer()
-        self.layer2 = HybridRetrievalLayer(session)
+        self.layer2 = HybridRetrievalLayer(session) # 混合检索层，需要数据库会话
         self.layer3 = RerankFilterLayer()
         self.layer4 = GenerationValidationLayer()
-        self.chat_repo = ChatRepo(session)
+        self.chat_repo = ChatRepo(session) #会话管理
 
+    # 流式聊天接口
     async def chat_stream(
         self,
         session_id: str,
@@ -367,8 +386,10 @@ class JobQAAgent:
     ) -> AsyncGenerator[Dict[str, Any], None]:
         """执行 RAG 流程并返回 SSE 事件流"""
 
+        # 获取会话历史
         history = await self.chat_repo.get_history(session_id, limit=10)
 
+        # 逐层处理，每层都发送状态事件
         yield {"type": "layer_info", "layer": 1, "content": "正在理解您的问题..."}
         analysis = await self.layer1.process(user_message, history)
         logger.info(
@@ -384,18 +405,22 @@ class JobQAAgent:
 
         yield {"type": "layer_info", "layer": 4, "content": "正在生成回答..."}
 
+        # 流式生成
         full_response = ""
         async for token in self.layer4.generate_stream(user_message, final_chunks, history):
             full_response += token
             yield {"type": "token", "content": token}
 
         position_ids = [c.position_id for c in final_chunks]
+
+        # 返回源文档信息
         sources = [
             {"id": c.position_id, "title": c.position.title}
             for c in final_chunks
         ]
         yield {"type": "sources", "positions": sources}
 
+        # 保存会话历史
         await self.chat_repo.create_history(
             session_id=session_id,
             role=MessageRole.USER,
@@ -427,19 +452,20 @@ async def embed_position(session: AsyncSession, position: PositionModel) -> None
 
     chunks = []
 
+    #标题向量
     if position.title:
         embedding = await embedding_client.embed_text(position.title)
         chunks.append((position.title, embedding, ChunkType.TITLE))
-
+    #描述向量
     if position.description:
         embedding = await embedding_client.embed_text(position.description)
         chunks.append((position.description, embedding, ChunkType.DESCRIPTION))
-
+    #要求向量
     if position.requirements:
         embedding = await embedding_client.embed_text(position.requirements)
         chunks.append(
             (position.requirements, embedding, ChunkType.REQUIREMENTS))
-
+    #完整向量
     full_text = f"""
 职位: {position.title}
 部门: {dept_name}

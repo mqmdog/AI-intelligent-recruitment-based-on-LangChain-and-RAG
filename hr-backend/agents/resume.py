@@ -13,6 +13,7 @@ agent = create_agent(
 )
 
 
+# 输入OCR解析内容，输出候选人信息
 async def extract_candidate_info(content: str) -> AgentCandidateSchema:
     response = await agent.ainvoke({"messages": [{
         "role": "user",
