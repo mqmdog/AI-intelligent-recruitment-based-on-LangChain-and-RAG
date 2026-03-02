@@ -8,7 +8,7 @@
 - **LangChain 多工具 Agent**: 自动化候选人评分、面试邀请、日程协调的端到端招聘流程
 - **LangGraph 状态管理**: 基于 PostgreSQL Checkpointer 的持久化 Agent 状态，支持多轮异步交互
 - **混合检索引擎**: PgVector 向量搜索 + PostgreSQL 全文检索，RRF 融合排序
-- **流式 SSE 响应**: 实时逐 Token 推送生成结果，前端即时展示
+- **流式 SSE 响应**: 实时 Token 推送生成结果，前端即时展示
 
 ## 系统架构
 
