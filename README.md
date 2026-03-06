@@ -10,6 +10,34 @@
 - **混合检索引擎**: PgVector 向量搜索 + PostgreSQL 全文检索，RRF 融合排序
 - **流式 SSE 响应**: 实时 Token 推送生成结果，前端即时展示
 
+## 项目呈现展示
+
+
+1. **内部员工登录界面**
+   
+   数据仪表盘
+   <img width="1920" height="873" alt="局部截取_20260306_213905" src="https://github.com/user-attachments/assets/06922e9e-90ee-4880-9a89-d10b646f324c" />
+   
+   职位管理
+   <img width="1920" height="873" alt="局部截取_20260306_213941" src="https://github.com/user-attachments/assets/3f437c23-0940-457a-b77b-885a88ca899b" />
+
+
+
+   候选人管理
+   <img width="1920" height="859" alt="局部截取_20260306_214004" src="https://github.com/user-attachments/assets/91adae56-4405-4d4b-a95a-9eab626c78d9" />
+
+
+3. **求职者登录后界面**
+   
+   智能助手多轮对话
+   <img width="1912" height="864" alt="局部截取_20260306_214206" src="https://github.com/user-attachments/assets/1b4e8ca8-c81d-424b-bf15-78758cc166d6" />
+   <img width="1610" height="732" alt="局部截取_20260306_214334" src="https://github.com/user-attachments/assets/fd4e7d2b-065b-46d4-984a-16ee3f00a6f8" />
+
+   投递简历
+   <img width="1910" height="840" alt="局部截取_20260306_214121" src="https://github.com/user-attachments/assets/65f7fe89-f7f5-4914-97d5-d808c2cbb863" />
+
+
+
 ## 系统架构
 
 系统采用前后端分离架构，前端 Vue 3 应用通过 HTTP/SSE 协议与后端 FastAPI 服务通信。后端核心由 AI 层（RAG 问答引擎 + LangChain Agent 集群）和集成层（钉钉 API、邮件服务、OCR 解析）组成，数据层采用 PostgreSQL 主库（业务数据）与 AI 专用库（向量数据 + Agent 状态）分离设计，Redis 作为缓存中间件。
